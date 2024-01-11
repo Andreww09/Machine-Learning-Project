@@ -85,44 +85,24 @@ def test_tree(data, tree):
     accuracy = np.sum(predicted["predicted"] == data["label"]) / len(data)
     return accuracy
 
-def leave_one_out_cross_validation(data, features, target_attribute_name="label"):
-    correct_predictions = 0
-    for i in range(len(data)):
-        # Exclude the i-th sample from training
-        train_data = data.drop(i)
-        test_instance = data.iloc[i]
-        
-        # Build the ID3 tree with the training data
-        tree = ID3(train_data, train_data, features, target_attribute_name)
-
-        # Predict the label of the test instance
-        prediction = predict(test_instance, tree)
-        if prediction == test_instance[target_attribute_name]:
-            correct_predictions += 1
-
-    # Calculate the overall accuracy
-    accuracy = correct_predictions / len(data)
-    return accuracy
-
-
-def k_fold_cross_validation(all_parts, k=9):
+def leave_one_out_cross_validation(all_parts, k=9):
     accuracies = []
 
     for i in range(1, k+1):
-        validation_part = f'venv\lingspam_public//bare//part{i}'
+        validation_part = f'lingspam_public//stop//part{i}'
         train_data, train_labels = [], []
 
         # Load training data from other parts
         for j in range(1, k+1):
             if j != i:
-                folder_name = f'venv\lingspam_public//bare//part{j}'
+                folder_name = f'lingspam_public//stop//part{j}'
                 data, labels = load_data(folder_name)
                 train_data.extend(data)
                 train_labels.extend(labels)
 
         # Prepare training DataFrame
         train_bag_of_words = create_bag_of_words(train_data)
-        top_words = [word for word, freq in train_bag_of_words.most_common(30)]
+        top_words = [word for word, freq in train_bag_of_words.most_common(50)]
         train_feature_vectors = create_feature_vectors(train_data, top_words)
         train_df = pd.DataFrame(train_feature_vectors, columns=top_words)
         train_df['label'] = train_labels
@@ -151,18 +131,18 @@ def k_fold_cross_validation(all_parts, k=9):
 # Load and preprocess training data
 train_data, train_labels = [], []
 for i in range(1, 10):
-    folder_name = f'venv\lingspam_public//bare//part{i}'
+    folder_name = f'lingspam_public//stop//part{i}'
     data, labels = load_data(folder_name)
     train_data.extend(data)
     train_labels.extend(labels)
 
 # Bag of words and feature vectors for training data
 train_bag_of_words = create_bag_of_words(train_data)
-top_words = [word for word, freq in train_bag_of_words.most_common(30)]
+top_words = [word for word, freq in train_bag_of_words.most_common(50)]
 train_feature_vectors = create_feature_vectors(train_data, top_words)
 
 # Load and preprocess test data
-test_data, test_labels = load_data(f'venv\lingspam_public//bare//part10')
+test_data, test_labels = load_data(f'lingspam_public//stop//part10')
 test_feature_vectors = create_feature_vectors(test_data, top_words)
 
 # Convert data into DataFrame format for ID3 algorithm
@@ -172,11 +152,11 @@ features = train_df.columns[:-1]  # Exclude the label column
 test_df = pd.DataFrame(test_feature_vectors, columns=top_words)
 test_df['label'] = test_labels
 
-# loocv_accuracy = leave_one_out_cross_validation(train_df, features)
-# print(f"LOOCV Accuracy: {loocv_accuracy}")
-
 # Building the ID3 Tree
 tree = ID3(train_df, train_df, train_df.columns[:-1])
+
+train_accuracy = test_tree(train_df, tree)
+print(f"Training Accuracy: {train_accuracy}")
 
 import pprint
 pprint.pprint(tree)
@@ -185,6 +165,6 @@ pprint.pprint(tree)
 accuracy = test_tree(test_df, tree)
 print(f"Accuracy: {accuracy}")
 
-# # Call the function and print the average accuracy
-# average_accuracy = k_fold_cross_validation(all_parts='venv\lingspam_public//bare', k=9)
-# print(f"Average Accuracy: {average_accuracy}")
+# Call the function and print the average accuracy
+average_accuracy = leave_one_out_cross_validation(all_parts='lingspam_public//stop', k=9)
+print(f"Average Accuracy: {average_accuracy}")
