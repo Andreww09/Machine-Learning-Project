@@ -1,6 +1,7 @@
 import os
 import string
-from collections import Counter
+
+import numpy as np
 
 
 class NaiveBayes:
@@ -12,7 +13,19 @@ class NaiveBayes:
         self.class_probs = None
         self.feature_probs = None
 
-    def fit(self, features, y):
+    def fit(self, x, y):
+
+        # features will contain a list of the words from every email
+        features = []
+        # all the words in all the emails
+        bag_of_words = []
+        for i in range(0, len(x)):
+            features.append(x[i].split())
+            for word in features[i]:
+                bag_of_words.append(word)
+        bag_of_words = list(set(bag_of_words))
+
+        # sort the emails to their categories
         normal = [features[i] for i in range(0, len(features)) if y[i] == 0]
         spam = [features[i] for i in range(0, len(features)) if y[i] == 1]
         # P(Spam) and P(Normal)
@@ -26,65 +39,77 @@ class NaiveBayes:
         # N_normal
         n_words_per_normal = list(map(len, normal))
         n_normal = sum(n_words_per_normal)
-
         # Laplace smoothing
         alpha = 1
 
-        self.parameters_spam = Counter(bag_of_words)
-        self.parameters_normal = Counter(bag_of_words)
+        # number of times a word appears in normal emails
+        normal_count = {unique_word: 0 for unique_word in bag_of_words}
+        for line in normal:
+            for word in line:
+                if word in normal_count:
+                    normal_count[word] += 1
+                else:
+                    normal_count[word] = 0
+        # number of times a word appear in spam emails
+        spam_count = {unique_word: 0 for unique_word in bag_of_words}
+        for line in spam:
+            for word in line:
+                if word in spam_count:
+                    spam_count[word] += 1
+                else:
+                    spam_count[word] = 0
+
+        self.parameters_spam = {unique_word: 0 for unique_word in bag_of_words}
+        self.parameters_normal = {unique_word: 0 for unique_word in bag_of_words}
         # Calculate parameters
         for word in bag_of_words:
-            n_word_given_spam = self.parameters_spam[word]
+            n_word_given_spam = spam_count[word]
             p_word_given_spam = (n_word_given_spam + alpha) / (n_spam + alpha * len(bag_of_words))
             self.parameters_spam[word] = p_word_given_spam
-
-            n_word_given_normal = self.parameters_normal[word]  # ham_messages already defined
+            n_word_given_normal = normal_count[word]
             p_word_given_normal = (n_word_given_normal + alpha) / (n_normal + alpha * len(bag_of_words))
             self.parameters_normal[word] = p_word_given_normal
 
     def predict(self, features):
 
-        p_spam = self.p_spam
-        p_normal = self.p_normal
-
+        p_spam = np.log(self.p_spam)
+        p_normal = np.log(self.p_normal)
         for word in features:
             if word in self.parameters_spam:
-                p_spam *= self.parameters_spam[word]
+                p_spam += np.log(self.parameters_spam[word])
 
             if word in self.parameters_normal:
-                p_normal *= self.parameters_normal[word]
+                p_normal += np.log(self.parameters_normal[word])
 
         if p_normal >= p_spam:
             return 0
         else:
             return 1
 
-    def evaluate(self, features, labels):
+    def evaluate(self, x, labels):
+        features = []
+        for i in range(0, len(x)):
+            features.append(x[i].split())
         count = 0
         for i in range(0, len(features)):
             if self.predict(features[i]) == labels[i]:
                 count += 1
         return count / len(features)
 
-    def leave_one_out_evaluation(self, features, labels):
-        num_samples = len(features)
-        correct_predictions = 0
-        print(num_samples)
-        for i in range(0, num_samples):
-            if i %10==0:
-                print(i)
+    def leave_one_out_evaluation(self):
+
+        accuracy = 0
+        for i in range(0, 9):
             # Exclude the i-th sample from training
-            train_features = features[:i] + features[(i + 1):]
-            train_labels = labels[:i] + labels[(i + 1):]
+            features, labels = get_features_and_labels(i + 1)
 
             # Train the model on the remaining samples
-            self.fit(train_features, train_labels)
+            self.fit(features, labels)
 
             # Evaluate on the excluded sample
-            prediction = self.predict(features[i])
-            correct_predictions += (prediction == labels[i])
+            accuracy += self.evaluate(train_features[i], train_labels[i])
 
-        accuracy = correct_predictions / num_samples
+        accuracy /= 9
         return accuracy
 
 
@@ -96,6 +121,7 @@ def load_data(folder_path):
             file_path = os.path.join(folder_path, filename)
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
+                # replaces punctuation and makes everything lowercase
                 for punctuation in string.punctuation:
                     content = content.replace(punctuation, ' ')
                 content = content.lower()
@@ -104,26 +130,39 @@ def load_data(folder_path):
     return files, labels
 
 
-# Load data from the first 9 folders for training
-train_files = []
-train_labels = []
-for i in range(1, 10):
-    folder_path = f'lingspam_public//bare//part{i}'
-    files, labels = load_data(folder_path)
-    train_files.extend(files)
-    train_labels.extend(labels)
+def get_features_and_labels(exclude=-1):
+    '''
+    Combines the emails and labels from all folders into one array, potentially excluding 1 folder
+    :param exclude: the folder to be excluded
+    '''
+    features = []
+    labels = []
 
-test_folder_path = 'lingspam_public//bare//part10'
-test_files, test_labels = load_data(test_folder_path)
-bag_of_words = []
-for i in range(0, len(train_files)):
-    train_files[i] = train_files[i].split()
-    for word in train_files[i]:
-        bag_of_words.append(word)
+    for i in range(0, 9):
+        if i + 1 != exclude:
+            features.extend(train_features[i])
+            labels.extend(train_labels[i])
 
-bag_of_words = list(set(bag_of_words))
+    return features, labels
 
-naive_bayes_model = NaiveBayes()
-naive_bayes_model.fit(train_files, train_labels)
-print(naive_bayes_model.evaluate(train_files, train_labels))
-# print(naive_bayes_model.leave_one_out_evaluation(train_files, train_labels))
+
+for folder in ['bare', 'lemm', 'lemm_stop', 'stop']:
+    # Load data from the first 9 folders for training
+    train_features = []
+    train_labels = []
+    for i in range(1, 10):
+        folder_path = f'lingspam_public//{folder}//part{i}'
+        files, labels = load_data(folder_path)
+        train_features.append(files)
+        train_labels.append(labels)
+    features, labels = get_features_and_labels()
+
+    test_folder_path = f'lingspam_public//{folder}//part10'
+    test_features, test_labels = load_data(test_folder_path)
+
+    naive_bayes_model = NaiveBayes()
+    naive_bayes_model.fit(features, labels)
+    print(f'{folder}:')
+    print(f'Train Accuracy: {naive_bayes_model.evaluate(features, labels)}')
+    print(f'Test Accuracy: {naive_bayes_model.evaluate(test_features, test_labels)}')
+    print(f'LOOCV: {naive_bayes_model.leave_one_out_evaluation()}')
