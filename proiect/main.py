@@ -46,18 +46,13 @@ class NaiveBayes:
         normal_count = {unique_word: 0 for unique_word in bag_of_words}
         for line in normal:
             for word in line:
-                if word in normal_count:
-                    normal_count[word] += 1
-                else:
-                    normal_count[word] = 0
+                normal_count[word] += 1
+
         # number of times a word appear in spam emails
         spam_count = {unique_word: 0 for unique_word in bag_of_words}
         for line in spam:
             for word in line:
-                if word in spam_count:
-                    spam_count[word] += 1
-                else:
-                    spam_count[word] = 0
+                spam_count[word] += 1
 
         self.parameters_spam = {unique_word: 0 for unique_word in bag_of_words}
         self.parameters_normal = {unique_word: 0 for unique_word in bag_of_words}
